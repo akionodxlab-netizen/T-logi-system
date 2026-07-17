@@ -37,6 +37,56 @@
     .color-1 { color: #28a745; } 
     .color-2 { color: #ffc107; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); } 
     .color-3 { color: #007bff; } 
+
+    /* 同行者入力フォーム用スタイル */
+    .companion-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: center;
+      animation: fadeIn 0.2s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .companion-row input {
+      flex: 1;
+    }
+    .btn-remove-companion {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      padding: 12px 15px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      width: auto;
+      margin-top: 0;
+      transition: background-color 0.2s;
+    }
+    .btn-remove-companion:hover {
+      background-color: #c82333;
+    }
+    .btn-add-companion {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      width: auto;
+      margin-top: 5px;
+      margin-bottom: 15px;
+      transition: background-color 0.2s;
+      display: inline-block;
+    }
+    .btn-add-companion:hover {
+      background-color: #218838;
+    }
   </style>
 </head>
 <body>
@@ -53,23 +103,16 @@
         <label>会社名</label>
         <input type="text" name="company" placeholder="例：〇〇運送" required>
         
-        <label>氏名</label>
+        <label>代表者 氏名</label>
         <input type="text" name="name" placeholder="例：配送 太郎" required>
         
-        <label>他〇〇名（同行者）</label>
-        <select name="companion">
-          <option value="0" selected>0</option>
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-          <option value="5">5</option>
-          <option value="6">6</option>
-          <option value="7">7</option>
-          <option value="8">8</option>
-          <option value="9">9</option>
-          <option value="10">10</option>
-        </select>
+        <div id="companionSection">
+          <label>同行者 氏名</label>
+          <div id="companionList">
+            <!-- ここに動的に同行者入力欄が追加される -->
+          </div>
+          <button type="button" class="btn-add-companion" onclick="addCompanionInput()">+ 同行者を追加</button>
+        </div>
         
         <label>電話番号</label>
         <input type="tel" name="tel" placeholder="09012345678" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required>
@@ -303,11 +346,20 @@
       document.getElementById('loader').classList.remove('hidden');
       document.getElementById('loader').innerHTML = '<p>登録中...</p><div id="error-display"></div>';
       
+      const companionInputs = document.querySelectorAll('.companion-name');
+      const companions = [];
+      companionInputs.forEach(input => {
+        const val = input.value.trim();
+        if (val) {
+          companions.push(val);
+        }
+      });
+
       const formData = { 
         no: "", 
         company: form.company.value, 
         name: form.name.value, 
-        companion: form.companion.value, 
+        companions: companions,
         tel: form.tel.value, 
         purpose: form.purpose.value,
         contact: form.contact.value 
@@ -358,6 +410,21 @@
       document.getElementById('customModal').classList.add('active');
     }
     function closeModal() { document.getElementById('customModal').classList.remove('active'); }
+
+    function addCompanionInput() {
+      const container = document.getElementById('companionList');
+      const row = document.createElement('div');
+      row.className = 'companion-row';
+      row.innerHTML = `
+        <input type="text" class="companion-name" placeholder="同行者氏名を入力" required>
+        <button type="button" class="btn-remove-companion" onclick="removeCompanionInput(this)">削除</button>
+      `;
+      container.appendChild(row);
+    }
+
+    function removeCompanionInput(btn) {
+      btn.parentElement.remove();
+    }
   </script>
 </body>
 </html>
