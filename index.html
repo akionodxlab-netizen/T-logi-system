@@ -97,7 +97,10 @@
     </div>
 
     <div id="entrySection" class="hidden">
-      <h2>👋 入構受付</h2>
+      <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:15px;">
+        <h2 style="margin:0;">👋 入構受付</h2>
+        <span id="gateDisplayBadge" style="background:#007bff; color:white; font-size:14px; font-weight:bold; padding:4px 10px; border-radius:20px;">GATE: 800</span>
+      </div>
       <p class="note">必要事項を入力し、守衛室で入構証を受け取ってください。</p>
       <form id="entryForm">
         <label>会社名</label>
@@ -191,6 +194,7 @@
 
     let initialMode = "entry";
     let initialNo = "";
+    let currentGate = "800";
     
     /**
      * GASのWeb API（doPost）に対してFetch APIを用いて非同期HTTPリクエストを送信する。
@@ -230,6 +234,13 @@
         const urlParams = new URLSearchParams(window.location.search);
         initialMode = urlParams.get('mode') || "entry";
         initialNo = urlParams.get('no') || "";
+        currentGate = urlParams.get('gate') || "800";
+
+        // GATE表示バッジを更新
+        const badgeEl = document.getElementById('gateDisplayBadge');
+        if (badgeEl) {
+          badgeEl.innerText = "GATE: " + currentGate;
+        }
 
         if (initialMode === "exit" && initialNo) {
           window.currentNo = initialNo;
@@ -390,6 +401,7 @@
       });
 
       const formData = { 
+        gate: currentGate,
         no: "", 
         company: form.company.value, 
         name: form.name.value, 
