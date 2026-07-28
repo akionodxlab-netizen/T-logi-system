@@ -197,6 +197,34 @@
     let currentGate = "800";
     
     /**
+     * 入構証番号（800〜1030）から対象のGATE番号を自動算出する。
+     * 
+     * @param {string|number} noStr - 入構証番号
+     * @return {string|null} GATE番号（"800", "900", "1000" または null）
+     */
+    function getGateFromNo(noStr) {
+      const num = parseInt(noStr, 10);
+      if (num >= 800 && num <= 830) return "800";
+      if (num >= 900 && num <= 930) return "900";
+      if (num >= 1000 && num <= 1030) return "1000";
+      return null;
+    }
+
+    /**
+     * 画面上のGATE表示バッジテキストを更新し、送信用currentGate変数を設定する。
+     * 
+     * @param {string} gateVal - 設定するGATE番号
+     */
+    function updateGateDisplay(gateVal) {
+      if (!gateVal) return;
+      currentGate = String(gateVal).trim();
+      const badgeEl = document.getElementById('gateDisplayBadge');
+      if (badgeEl) {
+        badgeEl.innerText = "GATE: " + currentGate;
+      }
+    }
+
+    /**
      * GASのWeb API（doPost）に対してFetch APIを用いて非同期HTTPリクエストを送信する。
      * CORS通信のエラーを回避するため、リクエストヘッダーに「Content-Type: text/plain」を指定して送信する。
      * 
@@ -234,13 +262,12 @@
         const urlParams = new URLSearchParams(window.location.search);
         initialMode = urlParams.get('mode') || "entry";
         initialNo = urlParams.get('no') || "";
-        currentGate = urlParams.get('gate') || "800";
-
-        // GATE表示バッジを更新
-        const badgeEl = document.getElementById('gateDisplayBadge');
-        if (badgeEl) {
-          badgeEl.innerText = "GATE: " + currentGate;
+        
+        let paramGate = urlParams.get('gate');
+        if (!paramGate && initialNo) {
+          paramGate = getGateFromNo(initialNo);
         }
+        updateGateDisplay(paramGate || "800");
 
         if (initialMode === "exit" && initialNo) {
           window.currentNo = initialNo;
@@ -314,6 +341,11 @@
         setNoColor(window.currentNo);
         document.getElementById('exitSection').classList.remove('hidden');
       } else {
+        // 番号からGATEを自動判定して更新
+        const detectedGate = getGateFromNo(window.currentNo);
+        if (detectedGate) {
+          updateGateDisplay(detectedGate);
+        }
         showModal("エラー", "No." + window.currentNo + " が見つかりません。<br><span style='font-size:0.8em'>未受付または出構済みです。</span>", () => showEntry(), true);
       }
     }
