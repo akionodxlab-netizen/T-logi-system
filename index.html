@@ -97,9 +97,9 @@
     </div>
 
     <div id="entrySection" class="hidden">
-      <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:15px;">
+      <div style="display:flex; align-items:center; justify-content:flex-start; gap:12px; margin-bottom:15px;">
+        <span id="gateDisplayBadge" style="background:#007bff; color:white; font-size:14px; font-weight:bold; padding:5px 12px; border-radius:20px;">ゲート１</span>
         <h2 style="margin:0;">👋 入構受付</h2>
-        <span id="gateDisplayBadge" style="background:#007bff; color:white; font-size:14px; font-weight:bold; padding:4px 10px; border-radius:20px;">GATE: 800</span>
       </div>
       <p class="note">必要事項を入力し、守衛室で入構証を受け取ってください。</p>
       <form id="entryForm">
@@ -211,6 +211,20 @@
     }
 
     /**
+     * GATEの内部表記（800, 900, 1000）をユーザー表示用名称（ゲート１, ゲート２, ゲート３）に変換する。
+     * 
+     * @param {string} gateVal - 内部GATE値
+     * @return {string} 表示用ゲート名
+     */
+    function getGateLabel(gateVal) {
+      const g = String(gateVal || "800").trim();
+      if (g === "900") return "ゲート２";
+      if (g === "1000") return "ゲート３";
+      if (g === "800") return "ゲート１";
+      return "ゲート " + g;
+    }
+
+    /**
      * 画面上のGATE表示バッジテキストを更新し、送信用currentGate変数を設定する。
      * 
      * @param {string} gateVal - 設定するGATE番号
@@ -220,7 +234,7 @@
       currentGate = String(gateVal).trim();
       const badgeEl = document.getElementById('gateDisplayBadge');
       if (badgeEl) {
-        badgeEl.innerText = "GATE: " + currentGate;
+        badgeEl.innerText = getGateLabel(currentGate);
       }
     }
 
