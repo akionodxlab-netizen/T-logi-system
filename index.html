@@ -588,19 +588,11 @@
       try {
         const result = await callGAS({ action: 'exit', no: window.currentNo });
         document.getElementById('loader').classList.add('hidden');
-        if (result.status === "SUCCESS") {
+
+        // SUCCESS および通信リトライによる ALREADY_EXIT_PENDING のどちらも正常完了（出構申請完了）として扱う
+        if (result.status === "SUCCESS" || result.status === "ALREADY_EXIT_PENDING") {
           document.getElementById('completeMsg').innerText = "出構申請を完了しました。";
           document.getElementById('completeSection').classList.remove('hidden');
-        } else if (result.status === "ALREADY_EXIT_PENDING") {
-          showModal(
-            "⚠️ 既に出構申請されています", 
-            result.message || ("No." + window.currentNo + " は既に「出構申請中」となっています。<br><br>守衛室にて確認中ですので、入構証を守衛所へご返却ください。"), 
-            () => {
-              document.getElementById('completeMsg').innerText = "既に「出構申請中」です。守衛室へ入構証をご返却ください。";
-              document.getElementById('completeSection').classList.remove('hidden');
-            }, 
-            true
-          );
         } else {
           throw new Error(result.message || "出構処理に失敗しました");
         }
