@@ -382,21 +382,32 @@
 
     /**
      * QRスキャンまたは初期URL経由で取得した番号のステータス確認結果を処理する。
-     * 構内に滞在中の場合は出構申請画面を表示し、未登録や出構済みの場合はエラーを表示するために実装。
+     * 構内に滞在中の場合は出構申請画面を表示し、未登録や出構済み、または既に「出構申請中」の場合は適切な案内メッセージを表示する。
      * 
      * @param {Object} result - checkStatus APIからの返却オブジェクト
      */
     function handleQrScanResult(result) {
       document.getElementById('loader').classList.add('hidden');
+      const detectedGate = getGateFromNo(window.currentNo);
+      if (detectedGate) {
+        updateGateDisplay(detectedGate);
+      }
+
       if (result.status === "INSIDE") {
-        setNoColor(window.currentNo);
-        document.getElementById('exitSection').classList.remove('hidden');
-      } else {
-        // 番号からGATEを自動判定して更新
-        const detectedGate = getGateFromNo(window.currentNo);
-        if (detectedGate) {
-          updateGateDisplay(detectedGate);
+        if (result.subStatus === "EXIT_PENDING") {
+          showModal(
+            "⚠️ 既に「出構申請中」です", 
+            "No." + window.currentNo + " は既に「出構申請中」となっています。<br><br>現在、守衛室にて出構確認を行っています。<br>そのまま入構証を守衛所へご返却ください。", 
+            () => showEntry(), 
+            true
+          );
+        } else {
+          setNoColor(window.currentNo);
+          document.getElementById('exitSection').classList.remove('hidden');
         }
+      } else if (result.status === "PENDING") {
+        showModal("未受付", "No." + window.currentNo + " は入構証がまだ手交されていません（受付待ち）。", () => showEntry(), true);
+      } else {
         showModal("エラー", "No." + window.currentNo + " が見つかりません。<br><span style='font-size:0.8em'>未受付または出構済みです。</span>", () => showEntry(), true);
       }
     }
@@ -488,10 +499,21 @@
         const result = await callGAS({ action: 'checkStatus', no: inputNo });
         document.getElementById('loader').classList.add('hidden');
         if (result.status === "INSIDE") {
-          setNoColor(window.currentNo);
-          document.getElementById('exitSection').classList.remove('hidden');
+          if (result.subStatus === "EXIT_PENDING") {
+            showModal(
+              "⚠️ 既に「出構申請中」です", 
+              "No." + window.currentNo + " は既に「出構申請中」となっています。<br><br>守衛室にて出構確認を行っていますので、入構証を守衛所へご返却ください。", 
+              () => showExitSearch(), 
+              true
+            );
+          } else {
+            setNoColor(window.currentNo);
+            document.getElementById('exitSection').classList.remove('hidden');
+          }
+        } else if (result.status === "PENDING") {
+          showModal("未受付", "No." + window.currentNo + " は受付待ち状態（未手交）です。", () => showExitSearch(), true);
         } else {
-          showModal("見つかりません", "該当データがありません。", () => showExitSearch(), true);
+          showModal("見つかりません", "該当データがありません。（未受付または出構済みです）", () => showExitSearch(), true);
         }
       } catch (error) {
         handleError(error, () => manualSearch());
@@ -569,6 +591,16 @@
         if (result.status === "SUCCESS") {
           document.getElementById('completeMsg').innerText = "出構申請を完了しました。";
           document.getElementById('completeSection').classList.remove('hidden');
+        } else if (result.status === "ALREADY_EXIT_PENDING") {
+          showModal(
+            "⚠️ 既に出構申請されています", 
+            result.message || ("No." + window.currentNo + " は既に「出構申請中」となっています。<br><br>守衛室にて確認中ですので、入構証を守衛所へご返却ください。"), 
+            () => {
+              document.getElementById('completeMsg').innerText = "既に「出構申請中」です。守衛室へ入構証をご返却ください。";
+              document.getElementById('completeSection').classList.remove('hidden');
+            }, 
+            true
+          );
         } else {
           throw new Error(result.message || "出構処理に失敗しました");
         }
