@@ -92,7 +92,7 @@
 <body>
   <div class="container">
     <div id="loader">
-      <p>読み込み中...</p>
+      <p id="loaderText">読み込み中...</p>
       <div id="error-display"></div>
     </div>
 
@@ -241,21 +241,41 @@
     let lastFailedAction = null;
 
     /**
+     * ローダーの表示テキストを安全に設定し表示状態にする。
+     * 
+     * @param {string} text - 表示するローディングメッセージ
+     */
+    function setLoaderText(text) {
+      const loaderP = document.getElementById('loaderText');
+      if (loaderP) loaderP.innerHTML = text;
+      const loaderDiv = document.getElementById('loader');
+      if (loaderDiv) loaderDiv.classList.remove('hidden');
+    }
+
+    /**
+     * ローダーを非表示にする。
+     */
+    function hideLoader() {
+      const loaderDiv = document.getElementById('loader');
+      if (loaderDiv) loaderDiv.classList.add('hidden');
+    }
+
+    /**
      * GASのWeb API（doPost）に対してFetch APIを用いて非同期HTTPリクエストを送信する。
      * CORS通信のエラーを回避するため、リクエストヘッダーに「Content-Type: text/plain」を指定して送信する。
-     * 一時的な通信障害やGASコールドスタート時のFailed to fetch対策として最大3回自動リトライする。
+     * 一時的な通信遅延やコールドスタート対策として最大2回（タイムアウト各7秒）リトライする。
      * 
      * @param {Object} payload - APIに送るデータオブジェクト（action名やデータ本体を含む）
-     * @param {number} [maxRetries=3] - 最大リトライ回数
-     * @param {number} [initialDelay=1200] - 初期リトライ待機ミリ秒
+     * @param {number} [maxRetries=2] - 最大リトライ回数
+     * @param {number} [initialDelay=600] - 初期リトライ待機ミリ秒
      * @return {Promise<Object>} APIから返却されたレスポンスオブジェクト
      */
-    async function callGAS(payload, maxRetries = 3, initialDelay = 1200) {
+    async function callGAS(payload, maxRetries = 2, initialDelay = 600) {
       let lastError = null;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000);
+          const timeoutId = setTimeout(() => controller.abort(), 7000); // 7秒タイムアウト
 
           const response = await fetch(GAS_API_URL, {
             method: "POST",
@@ -274,10 +294,7 @@
           lastError = err;
           console.warn(`[callGAS API試行 ${attempt}/${maxRetries} 失敗]:`, err);
           if (attempt < maxRetries) {
-            const loaderP = document.querySelector('#loader p');
-            if (loaderP) {
-              loaderP.innerText = `通信接続中... 再試行しています (${attempt}/${maxRetries})`;
-            }
+            setLoaderText(`通信確認中... 再接続しています (${attempt}/${maxRetries})`);
             await new Promise(res => setTimeout(res, initialDelay * attempt));
           }
         }
@@ -307,8 +324,7 @@
 
       if (initialMode === "exit" && initialNo) {
         window.currentNo = initialNo;
-        document.getElementById('loader').classList.remove('hidden');
-        document.getElementById('loader').innerHTML = "<p>No." + initialNo + " を確認中...</p><div id='error-display'></div>";
+        setLoaderText("No." + initialNo + " を確認中...");
         
         try {
           const result = await callGAS({ action: 'checkStatus', no: initialNo });
@@ -319,7 +335,7 @@
         return;
       }
 
-      document.getElementById('loader').classList.add('hidden');
+      hideLoader();
       if (initialMode === "exit") {
         showExitSearch();
       } else {
@@ -387,7 +403,7 @@
      * @param {Object} result - checkStatus APIからの返却オブジェクト
      */
     function handleQrScanResult(result) {
-      document.getElementById('loader').classList.add('hidden');
+      hideLoader();
       const detectedGate = getGateFromNo(window.currentNo);
       if (detectedGate) {
         updateGateDisplay(detectedGate);
@@ -420,9 +436,9 @@
      * @param {Function} [retryCallback] - 再試行時に実行する関数
      */
     function handleError(e, retryCallback) {
-      document.getElementById('loader').classList.add('hidden');
+      hideLoader();
       const msgStr = String(e && e.message ? e.message : e);
-      const isNetErr = msgStr.includes("fetch") || msgStr.includes("通信") || msgStr.includes("ネットワーク") || msgStr.includes("Failed");
+      const isNetErr = msgStr.includes("fetch") || msgStr.includes("通信") || msgStr.includes("ネットワーク") || msgStr.includes("Failed") || msgStr.includes("Abort");
       
       const title = isNetErr ? "⚠️ 通信エラー" : "エラー";
       const displayMsg = isNetErr
@@ -492,12 +508,11 @@
       }
       window.currentNo = inputNo;
       document.getElementById('exitSearchSection').classList.add('hidden');
-      document.getElementById('loader').classList.remove('hidden');
-      document.getElementById('loader').innerHTML = '<p>No.' + inputNo + ' を確認中...</p><div id="error-display"></div>';
+      setLoaderText('No.' + inputNo + ' を確認中...');
       
       try {
         const result = await callGAS({ action: 'checkStatus', no: inputNo });
-        document.getElementById('loader').classList.add('hidden');
+        hideLoader();
         if (result.status === "INSIDE") {
           if (result.subStatus === "EXIT_PENDING") {
             showModal(
@@ -533,8 +548,7 @@
       }
       
       document.getElementById('entrySection').classList.add('hidden');
-      document.getElementById('loader').classList.remove('hidden');
-      document.getElementById('loader').innerHTML = '<p>登録中...</p><div id="error-display"></div>';
+      setLoaderText('登録中...');
       
       const companionInputs = document.querySelectorAll('.companion-name');
       const companions = [];
@@ -558,7 +572,7 @@
       
       try {
         const result = await callGAS({ action: 'entry', formData: formData });
-        document.getElementById('loader').classList.add('hidden');
+        hideLoader();
         if (result.status === "SUCCESS") {
           document.getElementById('completeMsg').innerHTML = "受付しました。<br><strong>守衛室で入構証を受け取ってください。</strong>";
           document.getElementById('completeSection').classList.remove('hidden');
@@ -582,12 +596,11 @@
 
     async function executeExitSubmit() {
       document.getElementById('exitSection').classList.add('hidden');
-      document.getElementById('loader').classList.remove('hidden');
-      document.getElementById('loader').innerHTML = '<p>No.' + window.currentNo + ' の出構申請を送信中...</p><div id="error-display"></div>';
+      setLoaderText('No.' + window.currentNo + ' の出構申請を送信中...');
       
       try {
         const result = await callGAS({ action: 'exit', no: window.currentNo });
-        document.getElementById('loader').classList.add('hidden');
+        hideLoader();
 
         // SUCCESS および通信リトライによる ALREADY_EXIT_PENDING のどちらも正常完了（出構申請完了）として扱う
         if (result.status === "SUCCESS" || result.status === "ALREADY_EXIT_PENDING") {
