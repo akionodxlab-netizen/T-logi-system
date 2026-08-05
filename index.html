@@ -434,8 +434,9 @@
      * 
      * @param {Error} e - エラーオブジェクト
      * @param {Function} [retryCallback] - 再試行時に実行する関数
+     * @param {Function} [cancelCallback] - 再試行をキャンセルした際に実行する関数（画面復帰用）
      */
-    function handleError(e, retryCallback) {
+    function handleError(e, retryCallback, cancelCallback) {
       hideLoader();
       const msgStr = String(e && e.message ? e.message : e);
       const isNetErr = msgStr.includes("fetch") || msgStr.includes("通信") || msgStr.includes("ネットワーク") || msgStr.includes("Failed") || msgStr.includes("Abort");
@@ -445,17 +446,32 @@
         ? "一時的なネットワーク不良または通信遅延が発生しました。<br><br>電波状況をご確認の上、<b>「再試行」</b>ボタンを押してください。"
         : "処理中にエラーが発生しました:<br>" + msgStr;
 
+      const defaultCancel = cancelCallback || (() => {
+        const isExitSearchVisible = !document.getElementById('exitSearchSection').classList.contains('hidden');
+        const isExitVisible = !document.getElementById('exitSection').classList.contains('hidden');
+        if (isExitSearchVisible || isExitVisible) {
+          showExitSearch();
+        } else {
+          showEntry();
+        }
+      });
+
       if (retryCallback) {
-        showRetryModal(title, displayMsg, retryCallback);
+        showRetryModal(title, displayMsg, retryCallback, defaultCancel);
       } else {
-        showModal(title, displayMsg, () => showEntry(), true);
+        showModal(title, displayMsg, defaultCancel, true);
       }
     }
 
     /**
      * 再試行ボタン付きのモーダルダイアログを表示する。
+     * 
+     * @param {string} title - モーダルのタイトル
+     * @param {string} msg - モーダルメッセージ
+     * @param {Function} retryCallback - 再試行実行コールバック
+     * @param {Function} cancelCallback - キャンセル時コールバック
      */
-    function showRetryModal(title, msg, retryCallback) {
+    function showRetryModal(title, msg, retryCallback, cancelCallback) {
       document.getElementById('modalTitle').innerText = title;
       document.getElementById('modalMsg').innerHTML = msg;
       const confirmBtn = document.getElementById('modalConfirmBtn');
@@ -465,7 +481,7 @@
       cancelBtn.innerText = "キャンセル";
       cancelBtn.onclick = function() {
         closeModal();
-        showEntry();
+        if (cancelCallback) cancelCallback();
       };
       
       confirmBtn.innerText = "↻ 再試行";
@@ -531,24 +547,20 @@
           showModal("見つかりません", "該当データがありません。（未受付または出構済みです）", () => showExitSearch(), true);
         }
       } catch (error) {
-        handleError(error, () => manualSearch());
+        handleError(error, () => manualSearch(), () => showExitSearch());
       }
     }
 
     /**
-     * 入構フォームに入力された代表者・同行者情報を取りまとめ、Web APIへ入構登録を送信する。
-     * 動的に追加された同行者入力欄の値も収集してFormDataオブジェクトに統合するために実装。
+     * 入構フォームに入力された代表者・同行者情報を取りまとめ、入構登録処理を開始する。
      */
-    async function submitEntry() {
+    function submitEntry() {
       const form = document.getElementById('entryForm');
       
       if (!form.company.value || !form.name.value || !form.contact.value) {
         showModal("入力エラー", "会社名、氏名、面会先は必須です", () => closeModal(), true);
         return;
       }
-      
-      document.getElementById('entrySection').classList.add('hidden');
-      setLoaderText('登録中...');
       
       const companionInputs = document.querySelectorAll('.companion-name');
       const companions = [];
@@ -569,7 +581,19 @@
         purpose: form.purpose.value,
         contact: form.contact.value 
       };
-      
+
+      executeEntrySubmit(formData);
+    }
+
+    /**
+     * 入構登録のWeb API送信を実行する。通信失敗時は「再試行」モーダルにより同一formDataでリトライ可能にする。
+     * 
+     * @param {Object} formData - 送信する入構受付フォームデータ
+     */
+    async function executeEntrySubmit(formData) {
+      document.getElementById('entrySection').classList.add('hidden');
+      setLoaderText('登録中...');
+
       try {
         const result = await callGAS({ action: 'entry', formData: formData });
         hideLoader();
@@ -580,7 +604,7 @@
           throw new Error(result.message || "登録処理に失敗しました");
         }
       } catch (error) {
-        handleError(error, () => submitEntry());
+        handleError(error, () => executeEntrySubmit(formData), () => showEntry());
       }
     }
 
@@ -610,7 +634,7 @@
           throw new Error(result.message || "出構処理に失敗しました");
         }
       } catch (error) {
-        handleError(error, () => executeExitSubmit());
+        handleError(error, () => executeExitSubmit(), () => showExitSearch());
       }
     }
 
