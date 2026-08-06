@@ -263,47 +263,36 @@
     /**
      * GASのWeb API（doPost）に対してFetch APIを用いて非同期HTTPリクエストを送信する。
      * CORS通信のエラーを回避するため、リクエストヘッダーに「Content-Type: text/plain」を指定して送信する。
-     * 一時的な通信遅延やコールドスタート対策として最大2回（タイムアウト各7秒）リトライする。
+     * GASの処理時間（スプレッドシートアクセス・転送）を考慮し、20秒のタイムアウトを設けてレスポンスを確実に待受する。
      * 
      * @param {Object} payload - APIに送るデータオブジェクト（action名やデータ本体を含む）
-     * @param {number} [maxRetries=2] - 最大リトライ回数
-     * @param {number} [initialDelay=600] - 初期リトライ待機ミリ秒
      * @return {Promise<Object>} APIから返却されたレスポンスオブジェクト
      */
-    async function callGAS(payload, maxRetries = 2, initialDelay = 600) {
-      let lastError = null;
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 7000); // 7秒タイムアウト
+    async function callGAS(payload) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20秒タイムアウトでGASの完了を確実に待つ
 
-          const response = await fetch(GAS_API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify(payload),
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
+        const response = await fetch(GAS_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
 
-          if (!response.ok) {
-            throw new Error("HTTPエラー (Status: " + response.status + ")");
-          }
-          const data = await response.json();
-          return data;
-        } catch (err) {
-          lastError = err;
-          console.warn(`[callGAS API試行 ${attempt}/${maxRetries} 失敗]:`, err);
-          if (attempt < maxRetries) {
-            setLoaderText(`通信確認中... 再接続しています (${attempt}/${maxRetries})`);
-            await new Promise(res => setTimeout(res, initialDelay * attempt));
-          }
+        if (!response.ok) {
+          throw new Error("HTTPエラー (Status: " + response.status + ")");
         }
+        const data = await response.json();
+        return data;
+      } catch (err) {
+        console.warn("[callGAS API通信エラー]:", err);
+        if (err.name === 'AbortError' || String(err.message).includes('fetch') || String(err.message).includes('NetworkError')) {
+          throw new Error("通信に時間がかかっているか、一時的なネットワーク不良が発生しました。");
+        }
+        throw err || new Error("ネットワークエラーが発生しました");
       }
-
-      if (lastError && (lastError.name === 'AbortError' || String(lastError.message).includes('fetch') || String(lastError.message).includes('NetworkError'))) {
-        throw new Error("一時的な通信不良が発生しました。");
-      }
-      throw lastError || new Error("ネットワークエラーが発生しました");
     }
 
     const noOptionsList = [];
